@@ -15,24 +15,25 @@
                 button#save(@click='save()') 保存(S)
                 button#reload(@click='reload()') 刷新(R)
             .last_update(v-if='source') 最后更新: {{format_relative_date(source.last_update)}}
+        
         #main
             .not_loaded(v-if='!loaded')
                 p 数据较大，正在加载，大约需要 30 秒......
                 
-                p
-                    b 快捷键列表
-                    br
-                    pre.
-                        空格    转到下一个条目
-                        Tab     转到下一订阅源
-                        Enter   打开原网页
-                        S       保存阅读进度
-                        R       重新加载
+                pre.
+                    <b>快捷键列表</b>
+                    
+                    空格    转到下一个条目
+                    Tab     转到下一订阅源
+                    Enter   打开原网页
+                    S       保存阅读进度
+                    R       重新加载
                 
                 p
                     b 源码
                     br
                     a(href='https://github.com/ShenHongFei/NewsHub' target='_blank') https://github.com/ShenHongFei/NewsHub
+            
             .item(v-if='item')
                 .head
                     a.title(:href='item.url' target='_blank')
@@ -47,7 +48,8 @@
     window.Source = class Source
         @Item: class Item
             constructor: ({@source, @title, @url, @date, @content, @hash, @read=false, @author, @categories}={})->
-                if typeof @date == 'string' then @date = new Date @date            
+                if typeof @date == 'string'
+                    @date = new Date @date            
         
         
         constructor: ({
@@ -62,9 +64,11 @@
             }={})->
             def @, 'size', get: -> @items.length
             def @, 'unread_size', get: -> @items.filter((item)-> !item.read).length
-            if !@src then @src = @url
+            if !@src
+                @src = @url
             
-            if typeof @last_update == 'string' then @last_update = new Date @last_update
+            if typeof @last_update == 'string'
+                @last_update = new Date @last_update
             
             @items = (new Item item for item in @items)
             @
@@ -82,10 +86,9 @@
             sources: null
             source: null
             item: null
-            readed_hashes: []
+            readed: []
             display_all_sources: false
             loaded: false
-            
             
         methods:
             trim_url: trim_url
@@ -103,7 +106,7 @@
                 @loaded = true
                 
             reload: ->
-                @readed_hashes = []
+                @readed = []
                 await @load()
                 
             select_source: (source, event)->
@@ -117,7 +120,13 @@
                 @read()
                 @next_item()
             
-            set_item: -> @item = @source?.items.find((item)-> !item.read)
+            set_item: ->
+                if !@source then return
+                
+                i = @source.items.indexOf @item
+                
+                @item = @source.items[(i+1)..]?.find (item)->
+                    !item.read
             
             next_item: ->
                 @set_item()
@@ -141,25 +150,39 @@
                 resp
             
             save: (disk=false)->
-                if !disk && !@readed_hashes.length then return
+                if !disk && !@readed.length then return
+                
                 await @submit 'read',
-                    hashes: @readed_hashes
+                    hashes: @readed.map 'hash'
                     save: disk
-                @readed_hashes = []
+                
+                @readed = []
+            
             
             read: (item, event)->
+                @readed.push @item
                 @item.read = true
-                @readed_hashes.push @item.hash
+            
+            revert: ->
+                @item = @readed.pop()
+                @item.read = false
+            
             
             switch_sources_display: ->
                 @display_all_sources = !@display_all_sources
-                if @display_all_sources then @sources = Source?.sources
+                if @display_all_sources
+                    @sources = Source?.sources
                 else @sources = Source.sources.filter (source)-> source.unread_size
             
-                
-            update: -> await @submit 'update'
-            lock:   -> await @submit 'lock'
-            unlock: -> await @submit 'unlock'
+            update: ->
+                await @submit 'update'
+            
+            
+            lock:   ->
+                await @submit 'lock'
+            
+            unlock: ->
+                await @submit 'unlock'
             
         mounted: ->
             await @load()
@@ -167,8 +190,9 @@
             # ------------ 快捷键
             document.onkeydown = (event)=>
                 key  = event.key
-                ctrl = event.getModifierState('Control')
-                alt  = event.getModifierState('Alt')
+                ctrl  = event.getModifierState('Control')
+                alt   = event.getModifierState('Alt')
+                shift = event.getModifierState('Shift')
                 
                 if alt then return
                 
@@ -184,7 +208,10 @@
                     
                 if key == ' '
                     event.preventDefault()
-                    @read_next()
+                    if !shift
+                        @read_next()
+                    else
+                        @revert()
                     return
                     
                 if key == 'Enter'
@@ -219,15 +246,27 @@
                     event.preventDefault()
                     @unlock()
                     return
-                
+                    
+                if key == 'ArrowRight'
+                    @set_item()
+                    return
+                    
+                if key == 'ArrowLeft'
+                    i = @source.items.indexOf(@item)
+                    if i > 0
+                        i--
+                    @item = @source.items[i]
+                    return
+                    
 </script>
 
 
 <style lang="stylus">
     side_width   = 220px
     main_width   = "calc(100% - %s)" % side_width
-    head_height  = 32px
-    background_color = #F3F3F3
+    head_height  = 28px
+    background_color  = #F3F3F3
+    background_color_ = #E6E6E6
     
     body
         margin 0
@@ -269,7 +308,7 @@
                     
                 
             .source.selected
-                background #E6E6E6
+                background background_color_
             
         #head
             height head_height
@@ -279,20 +318,18 @@
             background background_color
             
             .source
-                display inline-block
+                line-height head_height
                 
                 #name
-                    line-height 32px
-                    font-size 1.6rem
                     display inline-block
+                    font-size 1.4rem
                     margin-left 30px
                     font-weight bold
                     
                 a#src
-                    text-align center
-                    line-height 32px
-                    font-size 1.4rem
                     display inline-block
+                    text-align center
+                    font-size 1.2rem
                     margin-left 40px
                     color black
                     text-decoration none

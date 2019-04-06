@@ -397,14 +397,14 @@ global.Source= class Source
             # debugger
     
     @update= ->
-        log new Date().to_time_string(), '开始更新'
+        log new Date().to_time_str(), '开始更新'
         @failed_sources = []
         @stop_flag = false
         for source in @sources
             if @stop_flag then break
             await source.update()
         if !@stop_flag then @save()
-        log new Date().to_time_string(), '更新完成'
+        log new Date().to_time_str(), '更新完成'
         log '更新失败的 Sources:', @failed_sources.map 'name'
         @failed_sources
     
@@ -482,7 +482,7 @@ repl= ->
     debug= ->
         Source.size
         sources.map 'name'
-        source = sources.find name: /杭州/
+        source = sources.find name: /考研学习/
         source = sources.find name: /前端日报/
         
         $ = cheerio.load source.items[0].content
